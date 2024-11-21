@@ -84,10 +84,9 @@ rtcsync
 
 hwclockfile /etc/adjtime
 EOF
-rc-update add chronyd default
 
 # Chronyd Booted Start
-rc-update add ntpd default
+rc-update add chronyd default
 
 # ESelect Repository Enable
 emerge eselect-repository
@@ -115,29 +114,11 @@ emerge --sync
 cd /etc/portage/
 rm make.profile
 ln -s ../../var/db/repos/custom_profile/profiles/default/linux/amd64/23.0/no-multilib/llvm make.profile
-exit
 
 # Change multilib to no-multilib for profile
 emerge --newuse --changed-deps=y --with-bdeps=y --usepkg=n @system
 emerge @preserved-rebuild
 emerge --emptytree --usepkg=n @world
-
-# KDE Repository Accept Keywords Setting
-cd /etc/portage/package.accept_keywords/
-FILES=`find . -xtype l`
-for FILE in $FILES;
-do
-    rm -f $FILE
-done
-
-FILES=`find /var/db/repos/kde/Documentation/package.accept_keywords/ -name "*.keywords" -not -name "*9999*.keywords" -not -name "*live*.keywords"`
-for FILE in $FILES;
-do
-    FILENAME=`basename $FILE`
-    if [ ! -f $FILENAME ]; then
-      ln -s $FILE
-    fi
-done
 
 # Custom Profile Set
 cd /etc/portage/
@@ -145,7 +126,7 @@ rm make.profile
 ln -s ../../var/db/repos/khgenrepo/profiles/default/linux/amd64/23.0/no-multilib/llvm/desktop/plasma make.profile
 
 # Change no-multilib desktop profile
-emerge --verbose --update --deep --newuse --changed-deps=y --with-bdeps=y --backtrack=30 --keep-going @world
+emerge --verbose --update --deep --newuse --changed-deps=y --with-bdeps=y --backtrack=30 @world
 
 # Setup KDE Desktop
 emerge plasma-meta kde-apps-meta

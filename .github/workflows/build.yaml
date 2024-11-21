@@ -10,15 +10,35 @@ jobs:
   # that will be consumed by multiple subsequent jobs.
   setup:
     runs-on: codebuild-gentoo-${{ github.run_id }}-${{ github.run_attempt }}
+    outputs:
+      tarball: ${{ steps.setup.outputs.tarball }}
+      log: ${{ steps.setup.outputs.log }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Gentoo Build
-        id: setvar
+        id: setup
         shell: bash
         run: | 
-          ls -l
+          sudo apt install -y pv
           sudo chmod a+x gentoo-setup.sh
           sudo ./gentoo-setup.sh | tee build.log
+          
+          echo "tarball=`find /mnt/stage3*.tar.xz`" >> $GITHUB_OUTPUT
+          echo "log=find build.log" >> $GITHUB_OUTPUT
+      - name: Upload Log
+        if: steps.setup.outputs.log
+        uses: actions/upload-artifact@v4
+        with:
+          name: "LogFile"
+          path: |
+            ${{ steps.setup.outputs.log }}
+      - name: Upload tarball
+        if: steps.setup.outputs.tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: "Stage3Package"
+          path: |
+            ${{ steps.setup.outputs.tarball }}

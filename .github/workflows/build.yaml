@@ -10,15 +10,192 @@ jobs:
   # that will be consumed by multiple subsequent jobs.
   setup:
     runs-on: codebuild-gentoo-${{ github.run_id }}-${{ github.run_attempt }}
+    timeout-minutes: 1440
+    outputs:
+      tarball: ${{ steps.setup.outputs.tarball }}
+      log: ${{ steps.setup.outputs.log }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Gentoo Build
-        id: setvar
+      - name: Enable Swap
         shell: bash
         run: | 
-          ls -l
-          sudo chmod a+x gentoo-setup.sh
-          sudo ./gentoo-setup.sh | tee build.log
+          # Swap Enable
+          sudo dd if=/dev/zero of=/var/swapfile bs=1MiB count=16384 status=progress
+          sudo chmod 600 /var/swapfile
+          sudo mkswap /var/swapfile
+          sudo swapon /var/swapfile
+          free -h
+      - name: Install Linux dependencies
+        shell: bash
+        run: | 
+          :
+      - name: User Script Copy
+        shell: bash
+        run: | 
+          sudo mkdir -p /mnt/gentoo/
+          sudo mkdir -p /mnt/gentoo/usr/local/bin/
+          sudo mkdir -p /mnt/gentoo/var/tmp/
+          sudo mkdir -p /mnt/gentoo/etc/portage/package.accept_keywords/
+          sudo mkdir -p /mnt/gentoo/etc/portage/package.use/
+          sudo cp gentoo-setup-*.sh /mnt/gentoo/
+          sudo cp myscripts/* /mnt/gentoo/usr/local/bin/
+          sudo cp --parents patches/sudo_nopasswd.patch /mnt/gentoo/var/tmp/
+          sudo cp --parents autostart/* /mnt/gentoo/var/tmp/
+          sudo cp -R portage/* /mnt/gentoo/etc/portage/
+      - name: Stage Tarball UnPackage
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          GENTOO_TARBALL_MIRROR_ROOT=http://ftp.iij.ad.jp/pub/linux/gentoo/releases/amd64/autobuilds/
+          GENTOO_TARBALL_LASTEST=`curl ${GENTOO_TARBALL_MIRROR_ROOT}latest-stage3-amd64-llvm-openrc.txt --silent | grep stage | cut -d' ' -f 1`
+          sudo wget ${GENTOO_TARBALL_MIRROR_ROOT}${GENTOO_TARBALL_LASTEST}
+          sudo tar -Jxf stage3-*.tar.xz --xattrs-include='*.*' --numeric-owner
+      - name: Resolv.conf Copy
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo cp --dereference /etc/resolv.conf ./etc/
+      - name: Create Autowrite File
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo touch ./etc/portage/package.accept_keywords/zzz.keywords
+          sudo touch ./etc/portage/package.use/zzz.use
+      - name: Add Run Permission
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo chmod a+x ./gentoo-setup-*.sh
+          sudo chmod a+x ./usr/local/bin/*
+      - name: Mount System Point
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo mount --types proc /proc ./proc
+          sudo mount --rbind /sys ./sys
+          sudo mount --make-rslave ./sys
+          sudo mount --rbind /dev ./dev
+          sudo mount --make-rslave ./dev
+          sudo mount --rbind /run ./run
+          sudo mount --make-rslave ./run
+          sudo mkdir -p ./run/udev
+          sudo mount -o bind /run/udev ./run/udev
+          sudo mount --make-rslave ./run/udev
+      - name: Initialize
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo chroot ./ /gentoo-setup-init.sh
+      - name: Change Profile (Stage1)
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo chroot ./ /gentoo-setup-stage1.sh
+      - name: Change Profile (Stage2)
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo chroot ./ /gentoo-setup-stage1-2.sh
+      - name: KDE Plasma Profile Setup
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo chroot ./ /gentoo-setup-stage2.sh
+      - name: Tarball UnPackage
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo chroot ./ /gentoo-setup-stage3.sh
+      - name: Cleanup
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo chroot ./ /gentoo-setup-stage4.sh
+          sudo rm ./stage3-*.tar.*
+          sudo rm ./gentoo-setup-*.sh
+      - name: UnMounting
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          sudo sync
+          sudo umount -R /mnt/gentoo/sys/
+          sudo umount -R /mnt/gentoo/dev/
+          sudo umount -R /mnt/gentoo/run/
+      - name: Compression
+        shell: bash
+        run: | 
+          cd /mnt/gentoo/
+          TIMESTAMP=`date '+%Y%m%dT%H%M%SZ'`
+          sudo tar -Jcpf ../stage3-amd64-llvm-openrc-$TIMESTAMP.tar *
+          cd ../
+          sudo xz -vT0 ./stage3-amd64-llvm-openrc-$TIMESTAMP.tar
+      - name: Finalize
+        id: setup
+        shell: bash
+        run: | 
+          echo "tarball=`find /mnt/stage3*.tar.xz`" >> $GITHUB_OUTPUT
+          echo "config=/mnt/gentoo/etc/portage/make.conf" >> $GITHUB_OUTPUT
+          echo "log=`find build.log`" >> $GITHUB_OUTPUT
+          echo "timestamp=`date '+%Y%m%dT%H%M%SZ'`" >> $GITHUB_OUTPUT
+      - name: Upload Log
+        if: steps.setup.outputs.log
+        uses: actions/upload-artifact@v4
+        with:
+          name: "LogFile"
+          path: |
+            ${{ steps.setup.outputs.log }}
+      - name: Upload Configure
+        if: steps.setup.outputs.log
+        uses: actions/upload-artifact@v4
+        with:
+          name: "Configures"
+          path: |
+            ${{ steps.setup.outputs.config }}
+      - name: Upload tarball
+        if: steps.setup.outputs.tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: "Stage3Package"
+          path: |
+            ${{ steps.setup.outputs.tarball }}
+  release:
+    needs: [setup]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "Stage3Package"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "Configures"
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "LogFile"
+      - name: Create GitHub release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          # name the release page for the branch
+          name: "${{ needs.setup.outputs.timestamp }}"
+          # SL-20546: want the channel and version to be visible on the
+          # release page
+          body: |
+            Plasma Desktop No Multilib LLVM Profile Stage3 tarball (UnOfficial)
+          prerelease: true
+          generate_release_notes: true
+          target_commitish: ${{ github.sha }}
+          append_body: true
+          fail_on_unmatched_files: true
+          files: |
+            Stage3Package/*.tar.xz
+            Configures/make.conf
+            LogFile/build.log
+
+      - name: post release URL
+        run: |
+          echo "::notice::Release ${{ steps.release.outputs.url }}"

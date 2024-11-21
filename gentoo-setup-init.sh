@@ -1,10 +1,6 @@
 #!/bin/bash
 
-# In ChRoot
 source /etc/profile
-
-# Repositories Sync
-emerge-webrsync
 
 # Portage Configure Set
 CORES=`grep processor /proc/cpuinfo | wc -l`
@@ -51,6 +47,9 @@ GRUB_PLATFORMS="efi-64"
 # Language Setting
 L10N="ja"
 EOF
+
+# Repositories Sync
+emerge-webrsync
 
 # Need eclean
 emerge app-portage/gentoolkit
@@ -112,86 +111,3 @@ eselect repository enable catalyst
 
 # Repositories Sync
 emerge --sync
-
-# Custom Profile Set
-cd /etc/portage/
-rm make.profile
-ln -s ../../var/db/repos/custom_profile/profiles/default/linux/amd64/23.0/no-multilib/llvm make.profile
-
-# Change multilib to no-multilib for profile
-emerge --emptytree --usepkg=n @system
-emerge @preserved-rebuild
-emerge --emptytree --usepkg=n --exclude 'sys-devel/gcc*' @world
-emerge @preserved-rebuild
-
-# Custom Profile Set
-cd /etc/portage/
-rm make.profile
-ln -s ../../var/db/repos/custom_profile/profiles/default/linux/amd64/23.0/no-multilib/llvm/desktop/plasma make.profile
-
-# Change no-multilib desktop profile
-emerge --update --deep --newuse --changed-deps=y --with-bdeps=y --backtrack=50 @world
-
-# Setup KDE Desktop
-emerge plasma-meta kde-apps-meta
-
-# Setup Japanese Input Methods
-emerge media-fonts/fonts-meta media-fonts/kochi-substitute media-fonts/vlgothic media-fonts/mplus-outline-fonts media-fonts/sazanami
-
-# Display Manager Setting
-cat <<EOF > /etc/conf.d/display-manager
-CHECKVT=7
-DISPLAYMANAGER="sddm"
-EOF
-
-# Display Manager Enable
-rc-update add display-manager default
-
-# Other Application
-emerge mail-client/thunderbird
-
-# Google Chrome Install
-emerge www-client/google-chrome
-
-# EPSON Printer Driver
-emerge net-print/cups-meta
-
-# CUPS Daemon Enable
-rc-update add cupsd default
-
-# Firmware Install
-emerge sys-kernel/linux-firmware
-
-# Kernel Install 
-emerge sys-kernel/installkernel
-emerge sys-kernel/gentoo-sources
-
-# Grub Setup
-emerge sys-boot/grub os-prober
-cat <<EOF >> /etc/default/grub
-GRUB_DISABLE_OS_PROBER=false
-EOF
-
-# Make Gentoo User
-useradd -m -G users,wheel,audio,cdrom,video -s /bin/bash gentoo
-emerge app-admin/sudo
-cat /var/tmp/patches/sudo_nopasswd.patch | patch -u /etc/sudoers
-
-# Setting Autostart
-mkdir -p /home/gentoo/.config/autostart/
-cp /var/tmp/*.desktop /home/gentoo/.config/autostart/
-
-chown gentoo:gentoo -R /home/gentoo.config/autostart/
-
-# System Upgrade
-emerge --update --deep --newuse --changed-deps=y --with-bdeps=y @world
-
-# CleanUp
-emerge --depclean
-eclean --deep distfiles
-eclean --deep packages
-
-find /var/tmp/portage/ -maxdepth 2
-rm -rf /var/tmp/portage/*
-rm -rf /var/cache/distfiles/*
-rm -rf /var/cache/binpkgs/*

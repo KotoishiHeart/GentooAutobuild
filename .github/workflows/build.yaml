@@ -1,0 +1,24 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  # The whole point of the setup job is that we want to set variables once
+  # that will be consumed by multiple subsequent jobs.
+  setup:
+    runs-on: codebuild-gentoo-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Gentoo Build
+        id: setvar
+        shell: bash
+        run: | 
+          ls -l
+          sudo chmod a+x gentoo-setup.sh
+          sudo ./gentoo-setup.sh | tee build.log

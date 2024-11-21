@@ -8,7 +8,6 @@ emerge-webrsync
 
 # Portage Configure Set
 CORES=`grep processor /proc/cpuinfo | wc -l`
-JOBS=`bc <<< "scale=0; 10*((0.8*${CORES})+0.5)/10;"`
 cat <<EOF > /etc/portage/make.conf
 # These settings were set by the catalyst build script that automatically built this stage.
 # Please consult /usr/share/portage/config/make.conf.example for a more detailed example.
@@ -17,6 +16,7 @@ CFLAGS="\${COMMON_FLAGS}"
 CXXFLAGS="\${COMMON_FLAGS}"
 FCFLAGS="\${COMMON_FLAGS}"
 FFLAGS="\${COMMON_FLAGS}"
+LDFLAGS="\${LDFLAGS} -Wl,--undefined-version"
 
 # NOTE: This stage was built with the bindist Use flag enabled
 
@@ -28,10 +28,10 @@ LC_MESSAGES=C.utf8
 CONFIG_PROTECT_MASK="/etc/portage/package.accept_keywords/zzz.keywords /etc/portage/package.use/zzz.use"
 
 # add option autounmask-write and continue
-EMERGE_DEFAULT_OPTS="--autounmask-write=y --autounmask-license=y --autounmask-continue=y --with-bdeps=y --verbose-conflicts --jobs 1"
+EMERGE_DEFAULT_OPTS="--autounmask-write=y --autounmask-license=y --autounmask-continue=y --with-bdeps=y --verbose-conflicts --verbose --quiet-build"
 
 # Add Compile Option
-MAKEOPTS="-j $JOBS"
+MAKEOPTS="-j $CORES"
 
 # Video Chip Setting
 VIDEO_CARDS="amdgpu radeon"
@@ -51,6 +51,9 @@ GRUB_PLATFORMS="efi-64"
 # Language Setting
 L10N="ja"
 EOF
+
+# Need eclean
+emerge app-portage/gentoolkit
 
 # GIT Install
 emerge dev-vcs/git
@@ -84,10 +87,9 @@ rtcsync
 
 hwclockfile /etc/adjtime
 EOF
-rc-update add chronyd default
 
 # Chronyd Booted Start
-rc-update add ntpd default
+rc-update add chronyd default
 
 # ESelect Repository Enable
 emerge eselect-repository
@@ -115,37 +117,20 @@ emerge --sync
 cd /etc/portage/
 rm make.profile
 ln -s ../../var/db/repos/custom_profile/profiles/default/linux/amd64/23.0/no-multilib/llvm make.profile
-exit
 
 # Change multilib to no-multilib for profile
-emerge --newuse --changed-deps=y --with-bdeps=y --usepkg=n @system
+emerge --emptytree --usepkg=n @system
 emerge @preserved-rebuild
-emerge --emptytree --usepkg=n @world
-
-# KDE Repository Accept Keywords Setting
-cd /etc/portage/package.accept_keywords/
-FILES=`find . -xtype l`
-for FILE in $FILES;
-do
-    rm -f $FILE
-done
-
-FILES=`find /var/db/repos/kde/Documentation/package.accept_keywords/ -name "*.keywords" -not -name "*9999*.keywords" -not -name "*live*.keywords"`
-for FILE in $FILES;
-do
-    FILENAME=`basename $FILE`
-    if [ ! -f $FILENAME ]; then
-      ln -s $FILE
-    fi
-done
+emerge --emptytree --usepkg=n --exclude 'sys-devel/gcc*' @world
+emerge @preserved-rebuild
 
 # Custom Profile Set
 cd /etc/portage/
 rm make.profile
-ln -s ../../var/db/repos/khgenrepo/profiles/default/linux/amd64/23.0/no-multilib/llvm/desktop/plasma make.profile
+ln -s ../../var/db/repos/custom_profile/profiles/default/linux/amd64/23.0/no-multilib/llvm/desktop/plasma make.profile
 
 # Change no-multilib desktop profile
-emerge --verbose --update --deep --newuse --changed-deps=y --with-bdeps=y --backtrack=30 --keep-going @world
+emerge --update --deep --newuse --changed-deps=y --with-bdeps=y --backtrack=50 @world
 
 # Setup KDE Desktop
 emerge plasma-meta kde-apps-meta
@@ -163,7 +148,7 @@ EOF
 rc-update add display-manager default
 
 # Other Application
-emerge app-office/calligra mail-client/thunderbird
+emerge mail-client/thunderbird
 
 # Google Chrome Install
 emerge www-client/google-chrome
@@ -199,4 +184,14 @@ cp /var/tmp/*.desktop /home/gentoo/.config/autostart/
 chown gentoo:gentoo -R /home/gentoo.config/autostart/
 
 # System Upgrade
-emerge --verbose --update --deep --newuse --changed-deps=y --with-bdeps=y @world
+emerge --update --deep --newuse --changed-deps=y --with-bdeps=y @world
+
+# CleanUp
+emerge --depclean
+eclean --deep distfiles
+eclean --deep packages
+
+find /var/tmp/portage/ -maxdepth 2
+rm -rf /var/tmp/portage/*
+rm -rf /var/cache/distfiles/*
+rm -rf /var/cache/binpkgs/*

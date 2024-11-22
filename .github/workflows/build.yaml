@@ -10,6 +10,7 @@ jobs:
   # that will be consumed by multiple subsequent jobs.
   setup:
     runs-on: codebuild-gentoo-${{ github.run_id }}-${{ github.run_attempt }}
+    timeout-minutes: 600
     outputs:
       tarball: ${{ steps.setup.outputs.tarball }}
       log: ${{ steps.setup.outputs.log }}

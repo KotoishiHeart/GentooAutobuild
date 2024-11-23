@@ -1,5 +1,7 @@
 #!/bin/bash
 
+free -h
+
 GENTOO_TARBALL_MIRROR_ROOT=http://ftp.iij.ad.jp/pub/linux/gentoo/releases/amd64/autobuilds/
 GENTOO_TARBALL_LASTEST=`curl ${GENTOO_TARBALL_MIRROR_ROOT}latest-stage3-amd64-llvm-openrc.txt --silent | grep stage | cut -d' ' -f 1`
 

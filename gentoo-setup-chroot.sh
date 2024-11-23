@@ -52,6 +52,8 @@ GRUB_PLATFORMS="efi-64"
 L10N="ja"
 EOF
 
+exit
+
 # GIT Install
 emerge dev-vcs/git
 

@@ -8,7 +8,6 @@ emerge-webrsync
 
 # Portage Configure Set
 CORES=`grep processor /proc/cpuinfo | wc -l`
-JOBS=`bc <<< "scale=0; 10*((0.8*${CORES})+0.5)/10;"`
 cat <<EOF > /etc/portage/make.conf
 # These settings were set by the catalyst build script that automatically built this stage.
 # Please consult /usr/share/portage/config/make.conf.example for a more detailed example.
@@ -31,7 +30,7 @@ CONFIG_PROTECT_MASK="/etc/portage/package.accept_keywords/zzz.keywords /etc/port
 EMERGE_DEFAULT_OPTS="--autounmask-write=y --autounmask-license=y --autounmask-continue=y --with-bdeps=y --verbose-conflicts --jobs 1"
 
 # Add Compile Option
-MAKEOPTS="-j $JOBS"
+MAKEOPTS="-j $CORES"
 
 # Video Chip Setting
 VIDEO_CARDS="amdgpu radeon"

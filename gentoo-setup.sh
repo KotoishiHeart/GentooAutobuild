@@ -1,5 +1,9 @@
 #!/bin/bash
-
+# initialize
+dd if=/dev/zero of=/var/swapfile bs=1MiB count=16384 status=progress
+chmod 600 /var/swapfile
+mkswap /var/swapfile
+swapon /var/swapfile
 free -h
 
 GENTOO_TARBALL_MIRROR_ROOT=http://ftp.iij.ad.jp/pub/linux/gentoo/releases/amd64/autobuilds/

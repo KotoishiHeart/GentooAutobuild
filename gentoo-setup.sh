@@ -7,16 +7,17 @@ swapon /var/swapfile
 free -h
 
 GENTOO_TARBALL_MIRROR_ROOT=http://ftp.iij.ad.jp/pub/linux/gentoo/releases/amd64/autobuilds/
-GENTOO_TARBALL_LASTEST=`curl ${GENTOO_TARBALL_MIRROR_ROOT}latest-stage3-amd64-llvm-openrc.txt --silent | grep stage | cut -d' ' -f 1`
+GENTOO_TARBALL_LASTEST=`curl ${GENTOO_TARBALL_MIRROR_ROOT}latest-stage3-amd64-nomultilib-openrc.txt --silent | grep stage | cut -d' ' -f 1`
 
 # User Script Copy
 mkdir -p /mnt/gentoo/usr/local/bin/
 mkdir -p /mnt/gentoo/var/tmp/
 mkdir -p /mnt/gentoo/etc/portage/package.accept_keywords/
 mkdir -p /mnt/gentoo/etc/portage/package.use/
-cp gentoo-setup-*.sh /mnt/gentoo/
+cp gentoo-setup-chroot.sh /mnt/gentoo/
 cp myscripts/* /mnt/gentoo/usr/local/bin/
 cp --parents patches/sudo_nopasswd.patch /mnt/gentoo/var/tmp/
+cp --parents kernel/config /mnt/gentoo/var/tmp/
 cp --parents autostart/* /mnt/gentoo/var/tmp/
 cp -R portage/* /mnt/gentoo/etc/portage/
 
@@ -48,11 +49,7 @@ mkdir -p ./run/udev
 mount -o bind /run/udev ./run/udev
 mount --make-rslave ./run/udev
 # Start
-chroot ./ /gentoo-setup-init.sh
-chroot ./ /gentoo-setup-stage1.sh
-chroot ./ /gentoo-setup-stage2.sh
-chroot ./ /gentoo-setup-stage3.sh
-chroot ./ /gentoo-setup-stage4.sh
+chroot ./ /gentoo-setup-chroot.sh
 echo "Setup Complete"
 
 # Cleanup
@@ -62,15 +59,16 @@ rm ./gentoo-setup-chroot.sh
 echo "Syncing ..."
 sync
 echo "Unmounting ..."
+umount -R ./proc/
 umount -R ./sys/
 umount -R ./dev/
 umount -R ./run/
 
 echo "Compression (Stage1) ..."
 TIMESTAMP=`date '+%Y%m%dT%H%M%SZ'`
-tar -Jcpf ../stage3-amd64-llvm-openrc-$TIMESTAMP.tar *
+tar -Jcpf ../stage3-amd64-nomultilib-desktop-openrc-$TIMESTAMP.tar *
 
 echo "Compression (Stage2) ..."
 cd ../
-xz -vT0 ./stage3-amd64-llvm-openrc-$TIMESTAMP.tar
+xz -vT0 ./stage3-amd64-nomultilib-desktop-openrc-$TIMESTAMP.tar
 echo "Work Complete"

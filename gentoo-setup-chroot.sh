@@ -8,15 +8,15 @@ emerge-webrsync
 
 # Portage Configure Set
 CORES=`grep processor /proc/cpuinfo | wc -l`
+JOBS=`bc <<< "scale=0; 10*((0.8*${CORES})+0.5)/10;"`
 cat <<EOF > /etc/portage/make.conf
 # These settings were set by the catalyst build script that automatically built this stage.
 # Please consult /usr/share/portage/config/make.conf.example for a more detailed example.
-COMMON_FLAGS="-O2 -pipe"
+COMMON_FLAGS="-O2 -march=znver4 -pipe"
 CFLAGS="\${COMMON_FLAGS}"
 CXXFLAGS="\${COMMON_FLAGS}"
 FCFLAGS="\${COMMON_FLAGS}"
 FFLAGS="\${COMMON_FLAGS}"
-LDFLAGS="\${LDFLAGS} -Wl,--undefined-version"
 
 # NOTE: This stage was built with the bindist Use flag enabled
 
@@ -31,7 +31,7 @@ CONFIG_PROTECT_MASK="/etc/portage/package.accept_keywords/zzz.keywords /etc/port
 EMERGE_DEFAULT_OPTS="--autounmask-write=y --autounmask-license=y --autounmask-continue=y --with-bdeps=y --verbose-conflicts --verbose --quiet-build"
 
 # Add Compile Option
-MAKEOPTS="-j $CORES"
+MAKEOPTS="-j $JOBS"
 
 # Video Chip Setting
 VIDEO_CARDS="amdgpu radeon"
@@ -101,7 +101,6 @@ eselect repository enable kde
 eselect repository add custom_profile git https://github.com/KotoishiHeart/khcustomprofile/
 
 # Gentoo Repository Setup
-rm -rf /var/db/repos/gentoo
 eselect repository enable gentoo
 
 # Add Repository Setup
@@ -111,26 +110,22 @@ eselect repository enable qt
 eselect repository enable catalyst
 
 # Repositories Sync
-emerge --sync
+emaint sync --repo custom_profile
+emaint sync --repo kde
+emaint sync --repo guru
+emaint sync --repo qt
+emaint sync --repo catalyst
+
+# System Upgrade
+emerge --update --deep --newuse --changed-deps=y --with-bdeps=y @world
 
 # Custom Profile Set
 cd /etc/portage/
 rm make.profile
-ln -s ../../var/db/repos/custom_profile/profiles/default/linux/amd64/23.0/no-multilib/llvm make.profile
-
-# Change multilib to no-multilib for profile
-emerge --emptytree --usepkg=n @system
-emerge @preserved-rebuild
-emerge --emptytree --usepkg=n --exclude 'sys-devel/gcc*' @world
-emerge @preserved-rebuild
-
-# Custom Profile Set
-cd /etc/portage/
-rm make.profile
-ln -s ../../var/db/repos/custom_profile/profiles/default/linux/amd64/23.0/no-multilib/llvm/desktop/plasma make.profile
+ln -s ../../var/db/repos/custom_profile/profiles/default/linux/amd64/23.0/no-multilib/desktop/plasma make.profile
 
 # Change no-multilib desktop profile
-emerge --update --deep --newuse --changed-deps=y --with-bdeps=y --backtrack=50 @world
+emerge --update --deep --newuse --changed-deps=y --with-bdeps=y @world
 
 # Setup KDE Desktop
 emerge plasma-meta kde-apps-meta
@@ -175,13 +170,14 @@ EOF
 # Make Gentoo User
 useradd -m -G users,wheel,audio,cdrom,video -s /bin/bash gentoo
 emerge app-admin/sudo
-cat /var/tmp/patches/sudo_nopasswd.patch | patch -u /etc/sudoers
 
 # Setting Autostart
 mkdir -p /home/gentoo/.config/autostart/
 cp /var/tmp/*.desktop /home/gentoo/.config/autostart/
+chown gentoo:gentoo -R /home/gentoo/.config/autostart/
 
-chown gentoo:gentoo -R /home/gentoo.config/autostart/
+rm -rf /varr/db/repos/gentoo
+emerge --sync
 
 # System Upgrade
 emerge --update --deep --newuse --changed-deps=y --with-bdeps=y @world
